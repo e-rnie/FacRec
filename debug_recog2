@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+import cv2
+import face_recognition
+import pickle
+import numpy as np
+
+# —————————————
+# PARAMETERS
+# —————————————
+ENC_FILE  = "encodings.pickle"  # produced by train_encodings.py
+RES_X,RES_Y = 320,240           # small for speed
+TOLERANCE  = 0.5                # matching threshold
+MODEL      = "hog"              # or "cnn" if you installed it
+
+# —————————————
+# LOAD KNOWN FACES
+# —————————————
+data = pickle.load(open(ENC_FILE, "rb"))
+print(f"✅ Loaded {len(data['encodings'])} encodings for {len(data['names'])} people\n")
+
+# —————————————
+# START CAMERA
+# —————————————
+cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH,  RES_X)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, RES_Y)
+if not cap.isOpened():
+    raise RuntimeError("Cannot open camera")
+print(f"📷 Camera streaming at {RES_X}×{RES_Y}. Press Q to quit.\n")
+
+# —————————————
+# MAIN LOOP
+# —————————————
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        continue
+
+    # 1) Convert from BGR to RGB
+    rgb = frame[:, :, ::-1]
+
+    # 2) Detect face _locations_ (this returns a list of 4-tuples)
+    face_locs = face_recognition.face_locations(rgb, model=MODEL)
+    print("face_locs:", face_locs)
+
+    # 3) Only if we found at least one box do we compute encodings
+    face_encs = []
+    if face_locs:
+        face_encs = face_recognition.face_encodings(
+            rgb,
+            known_face_locations=face_locs,  # <— literally the output of face_locations()
+            num_jitters=1
+        )
+        print(" face_encs count:", len(face_encs))
+
+    # 4) If the two lists line up 1:1, label and draw them
+    if len(face_locs) == len(face_encs) and face_locs:
+        for (top, right, bottom, left), enc in zip(face_locs, face_encs):
+            matches = face_recognition.compare_faces(data["encodings"], enc, TOLERANCE)
+            name = "Unknown"
+            if True in matches:
+                best = np.argmin(face_recognition.face_distance(data["encodings"], enc))
+                name = data["names"][best]
+            # draw
+            cv2.rectangle(frame, (left, top), (right, bottom), (0,255,0), 2)
+            cv2.putText(frame, name, (left, top-10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1)
+    else:
+        # either no faces or a mismatch – don’t attempt to recognize
+        pass
+
+    # 5) Display
+    cv2.imshow("Face Recognition", frame)
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
