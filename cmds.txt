@@ -1,0 +1,34 @@
+# 1. Install build dependencies (≈250 MB)
+sudo apt update
+sudo apt install -y build-essential cmake git python3-dev \
+  libjpeg-dev libpng-dev libtiff-dev libavcodec-dev libavformat-dev \
+  libswscale-dev libv4l-dev libxvidcore-dev libx264-dev \
+  libgtk-3-dev libatlas-base-dev gfortran pkg-config
+
+# 2. Grab OpenCV source + contrib modules
+cd ~
+git clone https://github.com/opencv/opencv.git
+git clone https://github.com/opencv/opencv_contrib.git
+
+# 3. Configure the build
+cd ~/opencv
+mkdir build && cd build
+cmake -D CMAKE_BUILD_TYPE=Release \
+      -D CMAKE_INSTALL_PREFIX=/usr/local \
+      -D OPENCV_EXTRA_MODULES_PATH=~/opencv_contrib/modules \
+      -D BUILD_opencv_python3=ON \
+      -D PYTHON3_EXECUTABLE=$(which python3) ..
+
+# 4. Compile  (≈60–90 min on Pi 4; use -j1 on slower models)
+make -j4
+
+# 5. Install and refresh linker cache
+sudo make install
+sudo ldconfig
+
+# 6. Verify the face module is present
+python - <<'PY'
+import cv2
+print("OpenCV version:", cv2.__version__)
+print("Has cv2.face?  ", hasattr(cv2, "face"))
+PY
