@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""
+LBPH face‑recognition on Raspberry Pi (Buster, OpenCV 3.2, libcamera stack).
+ * Capture is handled by `libcamera-vid` streaming YUV420 frames to localhost:5000
+ * This script just reads those frames, converts to BGR, and runs LBPH.
+"""
+
+import cv2, pickle, socket, numpy as np, time, sys, os
+
+# ---------- LBPH model ----------
+rec = cv2.face.createLBPHFaceRecognizer()
+rec.load("lbph.yml")                       # model you trained earlier
+names = pickle.load(open("labels.pkl", "rb"))
+
+# ---------- Haar cascade ----------
+CASCADE = "/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml"
+detector = cv2.CascadeClassifier(CASCADE)
+
+# ---------- Camera parameters ----------
+WIDTH, HEIGHT = 640, 480                  # must match libcamera-vid settings
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.bind(("127.0.0.1", 5000))            # same port as socat
+
+def get_frame():
+    # YUV420 frame size = W*H*1.5 bytes
+    packet, _ = sock.recvfrom(int(WIDTH * HEIGHT * 1.5))
+    if len(packet) != WIDTH * HEIGHT * 3 // 2:
+        return None                       # wrong-size packet; skip frame
+    yuv = np.frombuffer(packet, dtype=np.uint8)\
+             .reshape((HEIGHT * 3 // 2, WIDTH))
+    return cv2.cvtColor(yuv, cv2.COLOR_YUV2BGR_I420)
+
+print("[*] Press ESC in the window to quit")
+while True:
+    frame = get_frame()
+    if frame is None:
+        time.sleep(0.02)
+        continue
+
+    gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    rects = detector.detectMultiScale(gray, 1.3, 5)
+
+    for (x, y, w, h) in rects:
+        roi   = gray[y:y+h, x:x+w]
+        label, conf = rec.predict(roi)
+        name  = names[label] if conf < 70 else "Unknown"
+
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 2)
+        cv2.putText(frame, f"{name} {conf:.0f}", (x, y-10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+
+    cv2.imshow("LBPH Face‑ID (libcamera‑vid stream)", frame)
+    if cv2.waitKey(1) == 27:              # ESC
+        break
+
+cv2.destroyAllWindows()
