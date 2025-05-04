@@ -1,0 +1,12 @@
+import cv2, numpy as np
+import socket
+
+WIDTH, HEIGHT = 640, 480
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.bind(("0.0.0.0", 5000))
+
+def get_frame():
+    packet, _ = sock.recvfrom(WIDTH * HEIGHT * 3 // 2)  # YUV420 size
+    yuv = np.frombuffer(packet, dtype=np.uint8).reshape((HEIGHT * 3 // 2, WIDTH))
+    bgr = cv2.cvtColor(yuv, cv2.COLOR_YUV2BGR_I420)
+    return bgr
