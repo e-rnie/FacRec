@@ -1,0 +1,3 @@
+ffmpeg -f rawvideo -pix_fmt yuv420p -s 640x480 \
+       -i tcp://127.0.0.1:5001 \
+       -vcodec copy -f rawvideo udp://127.0.0.1:5000
