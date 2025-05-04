@@ -1,0 +1,16 @@
+# 1 – Did the V4L2 shim load?
+lsmod | grep v4l2
+
+# 2 – What video devices exist and their drivers?
+v4l2-ctl --list-devices
+
+# 3 – Kernel log snippet for the camera
+dmesg | grep -i -e bcm2835 -e v4l2 | tail -n 10
+
+# 4 – Exact OpenCV backend it tries to use
+python3 - <<'EOF'
+import cv2, os
+cap = cv2.VideoCapture(0)
+print("Backend:", cap.getBackendName() if hasattr(cap,"getBackendName") else "n/a")
+print("Opened :", cap.isOpened())
+EOF
