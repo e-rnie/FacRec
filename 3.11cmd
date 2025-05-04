@@ -1,0 +1,44 @@
+#############################################################################
+# ONE‑SHOT UPGRADE FROM PYTHON 3.7 → 3.11  (safe on Bullseye / Buster Pi OS)
+#############################################################################
+
+# 0) Leave and delete the old 3.7 virtual‑env
+deactivate 2>/dev/null || true
+cd ~/cv
+rm -rf venv
+
+# 1) Add the Bookworm back‑port repo for newer Python
+echo 'deb http://deb.debian.org/debian bookworm-backports main' | \
+     sudo tee /etc/apt/sources.list.d/bookworm-backports.list
+sudo apt update
+
+# 2) Install Python 3.11 and its venv helper
+sudo apt install -y python3.11 python3.11-venv
+
+# 3) Create a brand‑new venv with the new interpreter (isolated)
+python3.11 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+
+# 4) Tell pip to use the Pi‑wheels index (one‑liner, creates ~/.pip/pip.conf)
+mkdir -p ~/.pip
+cat > ~/.pip/pip.conf <<'EOF'
+[global]
+extra-index-url = https://www.piwheels.org/simple
+EOF
+
+# 5) Install your stack (all wheels, zero compiling)
+pip install torch==1.13.1+cpu ultralytics opencv-python-headless face_recognition
+
+#############################################################################
+# DONE — verify everything imports
+python - <<'EOF'
+import sys, torch, cv2, face_recognition, numpy, matplotlib
+print("Python        :", sys.version.split()[0])
+print("Torch         :", torch.__version__)
+print("OpenCV        :", cv2.__version__)
+print("NumPy         :", numpy.__version__)
+print("Matplotlib    :", matplotlib.__version__)
+print("face_recogn.  :", face_recognition.__version__)
+EOF
+#############################################################################
