@@ -1,0 +1,1 @@
+bash pip uninstall -y opencv-python opencv-python-headless # remove core-only build pip install --no-cache-dir --extra-index-url https://www.piwheels.org/simple \ opencv-contrib-python==4.9.0.80	
