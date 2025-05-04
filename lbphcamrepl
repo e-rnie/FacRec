@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""
+LBPH face‑recognition demo for Raspberry Pi
+------------------------------------------
+
+•  Uses the modern libcamera stack via OpenCV’s V4L2 backend
+•  Shows a live preview window (X11) – press ESC to quit
+•  Expects reference images inside a folder called  “faces/”
+     ├── faces/
+     │   ├── alice_1.jpg
+     │   ├── alice_2.jpg
+     │   ├── bob_1.jpg
+     │   └── charlie_1.png
+•  The text *before the first underscore* becomes the label (“alice”, “bob”…)
+
+Run once to train; re‑run after adding new images to retrain automatically.
+"""
+
+import cv2
+import numpy as np
+import pathlib, imghdr, sys
+
+# ------------------------------------------------------------
+# 1.  Load & validate training images
+# ------------------------------------------------------------
+faces_dir = pathlib.Path(__file__).with_name("faces")
+if not faces_dir.exists():
+    sys.exit("ERROR: No ./faces directory found – create it and add JPG/PNG files")
+
+images, labels, names = [], [], []
+for file in faces_dir.iterdir():
+    if imghdr.what(file) not in ("jpeg", "png"):
+        print(f"Skipping {file.name} (not a JPG/PNG)")
+        continue
+
+    img = cv2.imread(str(file), cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        print(f"Could not read {file.name}, skipping")
+        continue
+
+    img = cv2.resize(img, (200, 200))
+    label = len(names)           # one label per image file
+    images.append(img)
+    labels.append(label)
+    names.append(file.stem.split("_")[0])
+
+if not images:
+    sys.exit("ERROR: No valid images found in ./faces – nothing to train on")
+
+print(f"[INFO] Training LBPH on {len(images)} images → labels: {names}")
+
+model = cv2.face.LBPHFaceRecognizer_create(radius=2, neighbors=16)
+model.train(images, np.array(labels))
+
+# ------------------------------------------------------------
+# 2.  Open camera and start preview
+# ------------------------------------------------------------
+cap = cv2.VideoCapture(0, cv2.CAP_V4L2)   # works with libcamera stack default node
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+if not cap.isOpened():
+    sys.exit("ERROR: Could not open /dev/video0 – is the camera enabled?")
+
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+
+print("[INFO] Preview window running – press ESC to quit.")
+while True:
+    ok, frame = cap.read()
+    if not ok:
+        print("Frame grab failed, exiting.")
+        break
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, 1.2, 5)
+
+    for (x, y, w, h) in faces:
+        roi = gray[y:y + h, x:x + w]
+        roi_resized = cv2.resize(roi, (200, 200))
+        label, conf = model.predict(roi_resized)
+        name = names[label] if conf < 60 else "Unknown"
+
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.putText(frame, f"{name} {conf:.0f}", (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+    cv2.imshow("LBPH preview – ESC to quit", frame)
+    if cv2.waitKey(1) == 27:      # 27 = ESC
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+print("[INFO] Closed.")
