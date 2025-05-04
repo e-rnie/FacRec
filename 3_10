@@ -1,0 +1,36 @@
+#############################################################################
+# 1) Install Python 3.10 and its venv helper (still inside Bookworm repo)
+sudo apt install -y python3.10 python3.10-venv
+
+# 2) Throw away the half‑done 3.11 venv
+cd ~/cv
+rm -rf venv
+
+# 3) Make a brand‑new venv that uses python3.10
+python3.10 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+
+# 4) Ensure piwheels index is configured (edit once if not present)
+mkdir -p ~/.pip
+cat > ~/.pip/pip.conf <<'EOF'
+[global]
+extra-index-url = https://www.piwheels.org/simple
+EOF
+
+# 5) Install Torch 1.13.1 + Ultralytics + the rest (all wheels, no compile)
+pip install torch==1.13.1+cpu torchvision==0.14.1 \
+            ultralytics opencv-python-headless face_recognition
+
+#############################################################################
+# 6) Verify everything now imports
+python - <<'EOF'
+import sys, torch, cv2, face_recognition, numpy, matplotlib
+print("Python       :", sys.version.split()[0])
+print("Torch        :", torch.__version__)
+print("OpenCV       :", cv2.__version__)
+print("NumPy        :", numpy.__version__)
+print("Matplotlib   :", matplotlib.__version__)
+print("face_recog   :", face_recognition.__version__)
+EOF
+#############################################################################
