@@ -1,0 +1,25 @@
+sudo apt remove --purge -y python3-opencv
+sudo apt autoremove -y
+
+
+echo 'deb http://archive.raspberrypi.com/debian/ bookworm main' | \
+     sudo tee /etc/apt/sources.list.d/raspi.list
+sudo apt update
+
+sudo apt install -y python3-opencv
+
+
+python3 -m pip uninstall -y opencv-python opencv-python-headless opencv-contrib-python
+python3 -m pip install --no-cache-dir \
+    --extra-index-url https://www.piwheels.org/simple \
+    opencv-contrib-python==4.9.0.80
+
+python3 - <<'PY'
+import cv2
+print("OpenCV:", cv2.__version__)
+try:
+    cv2.face.LBPHFaceRecognizer_create()
+    print("cv2.face ✔  available")
+except AttributeError as e:
+    print("cv2.face ✘  missing:", e)
+PY
